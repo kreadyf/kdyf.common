@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -34,8 +34,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\kdyf.Notifications.Redis\kdyf.Notifications.Redis.csproj" />
-    <ProjectReference Include="..\kdyf.Notifications\kdyf.Notifications.csproj" />
+    <ProjectReference Include="..\..\src\kdyf.Notifications\kdyf.Notifications.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -43,4 +42,3 @@
   </ItemGroup>
 
 </Project>
-

@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\kdyf.Operations\kdyf.Operations.csproj" />
+    <ProjectReference Include="..\..\src\kdyf.Operations\kdyf.Operations.csproj" />
     <ProjectReference Include="..\kdyf.Common.Test\kdyf.Common.Test.csproj" />
   </ItemGroup>
 

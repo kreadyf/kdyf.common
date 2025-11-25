@@ -5,7 +5,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <UserSecretsId>sample02-139566e6-a74e-4c50-af33-97ebe087f6a5</UserSecretsId>
+    <UserSecretsId>sample01-139566e6-a74e-4c50-af33-97ebe087f6a5</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,8 +19,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\kdyf.Notifications\kdyf.Notifications.csproj" />
-    <ProjectReference Include="..\kdyf.Notifications.Redis\kdyf.Notifications.Redis.csproj" />
     <ProjectReference Include="..\kdyf.Notifications.Sample.Shared\kdyf.Notifications.Sample.Shared.csproj" />
   </ItemGroup>
 
