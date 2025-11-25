@@ -1,0 +1,39 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+
+		<!-- Package configuration -->
+		<PackageId>kdyf.Operations</PackageId>
+		<Version>2.0.1</Version>
+		<Authors>Kreadyf SRL</Authors>
+		<Company>Kreadyf SRL</Company>
+		<Description>Lightweight operations orchestration framework for .NET. Provides composable operation executors with sequential and concurrent (async pipeline) execution patterns. Features include: fluent API for building complex workflows, nested operation sequences, producer-consumer pipelines with backpressure control, real-time execution status tracking, error handling with detailed error trees, cancellation support, and automatic dependency injection integration. Ideal for building maintainable, testable business logic workflows with comprehensive execution observability.</Description>
+		<PackageTags>operations;kdyf;handler;framework;pipeline;workflow;orchestration;async;executor;fluent-api</PackageTags>
+
+		<!-- License (required) -->
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+
+		<!-- README -->
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+
+		<!-- Include symbols and source (optional but recommended) -->
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+		<!-- Enable package creation with `dotnet pack` -->
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+	</ItemGroup>
+
+</Project>

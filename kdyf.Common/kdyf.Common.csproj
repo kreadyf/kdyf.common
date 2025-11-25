@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <!-- Package configuration -->
+    <PackageId>kdyf.Common</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Kreadyf SRL</Authors>
+    <Company>Kreadyf SRL</Company>
+    <Description>Common utilities and base classes for KDYF projects. Provides KdyfTestBase for MSTest with dependency injection, InvocationTracker for preventing duplicate service registrations, and collection extension methods. Essential infrastructure for building testable .NET applications with consistent patterns.</Description>
+    <PackageTags>kdyf;common;utilities;testing;mstest;dependency-injection;test-base;extensions;invocation-tracker</PackageTags>
+
+    <!-- License (required) -->
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+
+    <!-- README -->
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <!-- Include symbols and source (optional but recommended) -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+    <!-- Enable package creation with `dotnet pack` -->
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+  </ItemGroup>
+
+</Project>
