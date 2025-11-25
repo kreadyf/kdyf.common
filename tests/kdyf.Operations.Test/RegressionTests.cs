@@ -18,12 +18,106 @@ namespace kdyf.Operations.Test;
 /// These tests verify fixes for critical issues found during code analysis.
 /// </summary>
 [TestClass]
+[DoNotParallelize]
 public sealed class RegressionTests : KdyfTestBase
 {
     protected override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
         services.AddKdyfOperations(typeof(RegressionTests).Assembly);
     }
+
+    #region Reflection Caching Tests (Medium Priority Issue #7)
+
+    /// <summary>
+    /// Regression test: Verifies reflection caching works correctly.
+    /// Same operation type executed multiple times should use cached reflection results.
+    /// </summary>
+    [TestMethod]
+    public async Task ExecuteAsync_RepeatedOperations_ShouldUseCachedReflection()
+    {
+        // Arrange
+        var opExec = ServiceProvider!.CreateCommonOperationExecutor<InputOutput>();
+
+        // Add same operation type 5 times
+        opExec
+            .Add<SequencialOperationA, ISequencialAInOut>()
+            .Add<SequencialOperationA, ISequencialAInOut>()
+            .Add<SequencialOperationA, ISequencialAInOut>()
+            .Add<SequencialOperationA, ISequencialAInOut>()
+            .Add<SequencialOperationA, ISequencialAInOut>();
+
+        var input = new InputOutput { A = 1 };
+        using var cts = new CancellationTokenSource();
+
+        // Act - Should execute quickly with cached reflection
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var result = await opExec.ExecuteAsync(input, cts.Token);
+        sw.Stop();
+
+        // Assert
+        Assert.AreEqual(6, result.A, "A should be incremented 5 times (1->6)");
+        Assert.IsTrue(sw.ElapsedMilliseconds < 1000,
+            "Execution should be fast with cached reflection (under 1 second for 5 operations)");
+    }
+
+    /// <summary>
+    /// Regression test: Verifies event handlers are registered only once per operation instance.
+    /// This tests the handler tracking that prevents duplicate event handler registration.
+    /// </summary>
+    [TestMethod]
+    public async Task ExecuteAsync_EventHandlers_ShouldBeRegisteredOnlyOnce()
+    {
+        // Arrange
+        var opExec = ServiceProvider!.CreateCommonOperationExecutor<InputOutput>();
+        opExec.Add<SequencialOperationA, ISequencialAInOut>();
+
+        var statusChangeCount = 0;
+        opExec.OnExecutionStatusChanged += _ => statusChangeCount++;
+
+        var input = new InputOutput { A = 1 };
+        using var cts = new CancellationTokenSource();
+
+        // Act - Execute operation (event handlers registered on first method lookup)
+        await opExec.ExecuteAsync(input, cts.Token);
+
+        // Assert - Verify we don't get duplicate event notifications
+        // Each operation should trigger: Running + Completed = 2 events minimum
+        Assert.IsTrue(statusChangeCount >= 2,
+            "Should have at least 2 status changes (Running + Completed)");
+        Assert.IsTrue(statusChangeCount <= 5,
+            "Should not have excessive status changes (indicates handler duplication)");
+    }
+
+    /// <summary>
+    /// Regression test: Verifies pattern matching optimization in HandleExecutor works correctly.
+    /// When types match, direct delegate calls should be used instead of reflection.
+    /// </summary>
+    [TestMethod]
+    public async Task ExecuteAsync_WithNestedSequence_ShouldUsePatternMatchingOptimization()
+    {
+        // Arrange
+        var opExec = ServiceProvider!.CreateCommonOperationExecutor<InputOutput>();
+        opExec.AddSequence<InputOutput>(
+            input => input, // Same type - should hit fast path
+            innerExec => innerExec.Add<SequencialOperationA, ISequencialAInOut>(),
+            (innerOutput, outerInput) =>
+            {
+                outerInput.A = innerOutput.A;
+                outerInput.Shared = innerOutput.Shared;
+            });
+
+        var input = new InputOutput { A = 1 };
+        using var cts = new CancellationTokenSource();
+
+        // Act
+        var result = await opExec.ExecuteAsync(input, cts.Token);
+
+        // Assert
+        Assert.AreEqual(2, result.A, "Operation should execute correctly with pattern matching");
+        Assert.IsTrue(result.Shared.Contains("(A 1)"), "Shared string should be updated");
+    }
+
+    #endregion
 
     #region DateTime Consistency Tests (Critical Issue #2)
 
@@ -346,100 +440,7 @@ public sealed class RegressionTests : KdyfTestBase
     }
 
     #endregion
-
-    #region Reflection Caching Tests (Medium Priority Issue #7)
-
-    /// <summary>
-    /// Regression test: Verifies reflection caching works correctly.
-    /// Same operation type executed multiple times should use cached reflection results.
-    /// </summary>
-    [TestMethod]
-    public async Task ExecuteAsync_RepeatedOperations_ShouldUseCachedReflection()
-    {
-        // Arrange
-        var opExec = ServiceProvider!.CreateCommonOperationExecutor<InputOutput>();
-
-        // Add same operation type 5 times
-        opExec
-            .Add<SequencialOperationA, ISequencialAInOut>()
-            .Add<SequencialOperationA, ISequencialAInOut>()
-            .Add<SequencialOperationA, ISequencialAInOut>()
-            .Add<SequencialOperationA, ISequencialAInOut>()
-            .Add<SequencialOperationA, ISequencialAInOut>();
-
-        var input = new InputOutput { A = 1 };
-        using var cts = new CancellationTokenSource();
-
-        // Act - Should execute quickly with cached reflection
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        var result = await opExec.ExecuteAsync(input, cts.Token);
-        sw.Stop();
-
-        // Assert
-        Assert.AreEqual(6, result.A, "A should be incremented 5 times (1->6)");
-        Assert.IsTrue(sw.ElapsedMilliseconds < 1000,
-            "Execution should be fast with cached reflection (under 1 second for 5 operations)");
-    }
-
-    /// <summary>
-    /// Regression test: Verifies event handlers are registered only once per operation instance.
-    /// This tests the handler tracking that prevents duplicate event handler registration.
-    /// </summary>
-    [TestMethod]
-    public async Task ExecuteAsync_EventHandlers_ShouldBeRegisteredOnlyOnce()
-    {
-        // Arrange
-        var opExec = ServiceProvider!.CreateCommonOperationExecutor<InputOutput>();
-        opExec.Add<SequencialOperationA, ISequencialAInOut>();
-
-        var statusChangeCount = 0;
-        opExec.OnExecutionStatusChanged += _ => statusChangeCount++;
-
-        var input = new InputOutput { A = 1 };
-        using var cts = new CancellationTokenSource();
-
-        // Act - Execute operation (event handlers registered on first method lookup)
-        await opExec.ExecuteAsync(input, cts.Token);
-
-        // Assert - Verify we don't get duplicate event notifications
-        // Each operation should trigger: Running + Completed = 2 events minimum
-        Assert.IsTrue(statusChangeCount >= 2,
-            "Should have at least 2 status changes (Running + Completed)");
-        Assert.IsTrue(statusChangeCount <= 5,
-            "Should not have excessive status changes (indicates handler duplication)");
-    }
-
-    /// <summary>
-    /// Regression test: Verifies pattern matching optimization in HandleExecutor works correctly.
-    /// When types match, direct delegate calls should be used instead of reflection.
-    /// </summary>
-    [TestMethod]
-    public async Task ExecuteAsync_WithNestedSequence_ShouldUsePatternMatchingOptimization()
-    {
-        // Arrange
-        var opExec = ServiceProvider!.CreateCommonOperationExecutor<InputOutput>();
-        opExec.AddSequence<InputOutput>(
-            input => input, // Same type - should hit fast path
-            innerExec => innerExec.Add<SequencialOperationA, ISequencialAInOut>(),
-            (innerOutput, outerInput) =>
-            {
-                outerInput.A = innerOutput.A;
-                outerInput.Shared = innerOutput.Shared;
-            });
-
-        var input = new InputOutput { A = 1 };
-        using var cts = new CancellationTokenSource();
-
-        // Act
-        var result = await opExec.ExecuteAsync(input, cts.Token);
-
-        // Assert
-        Assert.AreEqual(2, result.A, "Operation should execute correctly with pattern matching");
-        Assert.IsTrue(result.Shared.Contains("(A 1)"), "Shared string should be updated");
-    }
-
-    #endregion
-
+    
     #region Thread Safety Documentation Tests
 
     /// <summary>
