@@ -15,9 +15,9 @@
 # Requirements:
 #   - NUGET_API_KEY secret must be configured in the repository
 # ============================================================================
-
+ 
 name: Test, Build and NuGet Deploy
-
+ 
 # ============================================================================
 # Triggers: Define when the workflow runs
 # ============================================================================
@@ -27,7 +27,7 @@ on:
   pull_request:
     branches: [ "main" ]      # Runs on PRs targeting main
   workflow_dispatch:
-
+ 
 # ============================================================================
 # Jobs: Define the jobs to execute
 # ============================================================================
@@ -40,30 +40,30 @@ jobs:
   # --------------------------------------------------------------------------
   test_and_build:
     runs-on: ubuntu-latest
-
+ 
     steps:
     # Checkout source code
     - name: Checkout repository
       uses: actions/checkout@v4
-
+ 
     # Setup .NET SDK
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 8.0.x
-
+ 
     # Restore NuGet dependencies
     - name: Restore dependencies
       run: dotnet restore
-
+ 
     # Build the entire solution without restoring (already done)
     - name: Build
       run: dotnet build --no-restore --configuration Release
-
+ 
     # Run all tests
     # - name: Test
     #  run: dotnet test --no-build --configuration Release --verbosity normal
-
+ 
   # --------------------------------------------------------------------------
   # Job: publish
   # --------------------------------------------------------------------------
@@ -76,7 +76,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     # Wait for test_and_build job to complete successfully
     needs: test_and_build
-
+ 
     steps:
     # Checkout with fetch-depth: 0 for full git history access
     # Required if using GitVersion or other git-based versioning tools
@@ -84,13 +84,13 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-
+ 
     # Setup .NET SDK
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 8.0.x
-
+ 
     # Restore dependencies before packing
     - name: Restore dependencies
       run: dotnet restore
@@ -99,33 +99,45 @@ jobs:
     # Required because each job runs in a fresh environment (no artifacts from test_and_build)
     - name: Build
       run: dotnet build --no-restore --configuration Release
-
+ 
     # ----------------------------------------------------------------------
     # Pack kdyf.Notifications
     # ----------------------------------------------------------------------
     # Generates the NuGet package for the base notifications project
     - name: Pack kdyf.Notifications
       run: dotnet pack src/kdyf.Notifications/kdyf.Notifications.csproj --configuration Release --output ./nuget_packages
-
+ 
     # ----------------------------------------------------------------------
     # Pack kdyf.Notifications.Redis
     # ----------------------------------------------------------------------
     # Generates the NuGet package for the Redis notifications implementation
     - name: Pack kdyf.Notifications.Redis
       run: dotnet pack src/kdyf.Notifications.Redis/kdyf.Notifications.Redis.csproj --configuration Release --output ./nuget_packages
-
+ 
     # ----------------------------------------------------------------------
     # Pack kdyf.Operations
     # ----------------------------------------------------------------------
     # Generates the NuGet package for the operations framework
     - name: Pack kdyf.Operations
       run: dotnet pack src/kdyf.Operations/kdyf.Operations.csproj --configuration Release --output ./nuget_packages
-
+ 
+    # ----------------------------------------------------------------------
+    # Verify NUGET_API_KEY secret is provided (does not reveal the secret)
+    # ----------------------------------------------------------------------
     - name: Verificar NUGET_API_KEY presente
-      run: if [ -z "${{ secrets.NUGET_API_KEY }}" ]; then
-        echo "ERROR NUGET_API_KEY no está definido"
-        exit 1 else
-        echo "NUGET_API_KEY está definido (valor oculto)" + "${{ secrets.NUGET_API_KEY }}" fi
+      run: |
+        if [ -z "${{ secrets.NUGET_API_KEY }}" ]; then
+          echo "ERROR: NUGET_API_KEY no está definido"
+          exit 1
+        else
+          echo "NUGET_API_KEY está definido (valor oculto)"
+        fi
+ 
+    - name: Comprobar longitud del secret (no revela el valor)
+      run: |
+        LEN=$(printf "%s" "${{ secrets.NUGET_API_KEY }}" | wc -c)
+        echo "Longitud de NUGET_API_KEY: $LEN"
+ 
     # ----------------------------------------------------------------------
     # Publish all packages to NuGet.org
     # ----------------------------------------------------------------------
