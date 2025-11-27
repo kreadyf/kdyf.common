@@ -7,7 +7,7 @@
 
 		<!-- Package configuration -->
 		<PackageId>kdyf.Operations</PackageId>
-		<Version>2.0.1</Version>
+		<Version>2.0.2</Version>
 		<Authors>Kreadyf SRL</Authors>
 		<Company>Kreadyf SRL</Company>
 		<Description>Lightweight operations orchestration framework for .NET. Provides composable operation executors with sequential and concurrent (async pipeline) execution patterns. Features include: fluent API for building complex workflows, nested operation sequences, producer-consumer pipelines with backpressure control, real-time execution status tracking, error handling with detailed error trees, cancellation support, and automatic dependency injection integration. Ideal for building maintainable, testable business logic workflows with comprehensive execution observability.</Description>
