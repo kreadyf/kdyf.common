@@ -15,6 +15,7 @@ public enum OperationState
     Faulted = 4,
     Cancelled = 5
 }
+
 public record ExecutionStatus(
     [property: JsonIgnore] IOperation Operation,
     Guid Id,
@@ -29,3 +30,4 @@ public record ExecutionStatus(
     [property: JsonIgnore] Exception? Error = null,
     ErrorDetails? SerializableError = null,
     OperationState Status = OperationState.Pending);
+

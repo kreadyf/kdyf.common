@@ -23,6 +23,7 @@ namespace kdyf.Operations.Executors;
 [OperationDescriptor("Sequence Executor", "Description Sequence Executor")]
 public class SequenceExecutor<TExecutorInputOutput> : BaseExecutor<TExecutorInputOutput>, ISequenceStartExecutor<TExecutorInputOutput>, ISequenceExecutor<TExecutorInputOutput>
 {
+
     /// <summary>
     /// Initializes a new instance of the <see cref="SequenceExecutor{TExecutorInputOutput}"/> class.
     /// </summary>
@@ -47,7 +48,7 @@ public class SequenceExecutor<TExecutorInputOutput> : BaseExecutor<TExecutorInpu
         TExecutorInputOutput previousResult = input;
         if (ExecutorState != null)
             UpdateExecutionStatus(ExecutorState with { Started = DateTime.UtcNow, Status = OperationState.Running });
-        
+
         try
         {
             foreach (var operationItem in Operations.Values)
@@ -55,10 +56,10 @@ public class SequenceExecutor<TExecutorInputOutput> : BaseExecutor<TExecutorInpu
                 cancellationToken.ThrowIfCancellationRequested();
 
                 UpdateOperationItem(Operations[operationItem.Id] with { Started = DateTime.UtcNow, Status = OperationState.Running });
-                
+
                 previousResult = await HandleOperation(Operations[operationItem.Id], previousResult, cancellationToken);
-            
-                if(Operations[operationItem.Id].Status != OperationState.Skipped)
+
+                if (Operations[operationItem.Id].Status != OperationState.Skipped)
                     UpdateOperationItem(Operations[operationItem.Id] with { Completed = DateTime.UtcNow, Status = OperationState.Completed });
             }
         }

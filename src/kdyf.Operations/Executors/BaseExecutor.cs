@@ -34,7 +34,7 @@ public abstract class BaseExecutor<TExecutorInputOutput> : ISubsequentExecutor<T
     public ExecutionStatus? ExecutorState { get; set; }
 
     private record ActionMappingBase();
-    private record ActionMapping<TInOut> (Func<TExecutorInputOutput, TInOut> MapIn, Action<TInOut, TExecutorInputOutput> MapOut, Func<TExecutorInputOutput, bool>? Condition) : ActionMappingBase;
+    private record ActionMapping<TInOut>(Func<TExecutorInputOutput, TInOut> MapIn, Action<TInOut, TExecutorInputOutput> MapOut, Func<TExecutorInputOutput, bool>? Condition) : ActionMappingBase;
 
     private Dictionary<Guid, ActionMappingBase> _actionMappings = new();
     private List<(IOperation Operation, Delegate Handler, EventInfo EventInfo)> _eventHandlers = new();
@@ -65,7 +65,7 @@ public abstract class BaseExecutor<TExecutorInputOutput> : ISubsequentExecutor<T
 
         var operation = sp.GetRequiredService<TOperation>();
 
-        
+
 
         var id = Guid.NewGuid();
 
@@ -109,7 +109,7 @@ public abstract class BaseExecutor<TExecutorInputOutput> : ISubsequentExecutor<T
         return AddExecutor(null, mapInto, exec, mapOut, scopeFactory);
     }
 
-    protected ISubsequentExecutor<TExecutorInputOutput> AddExecutor<TExecutor, TInputOutput>(Func<TExecutorInputOutput, bool>? condition, Func<TExecutorInputOutput, TInputOutput> mapInto, Func<TExecutor, IExecutor<TInputOutput>> exec, Action<TInputOutput, TExecutorInputOutput> mapOut, Func<IServiceProvider, IServiceScope>? scopeFactory = null) 
+    protected ISubsequentExecutor<TExecutorInputOutput> AddExecutor<TExecutor, TInputOutput>(Func<TExecutorInputOutput, bool>? condition, Func<TExecutorInputOutput, TInputOutput> mapInto, Func<TExecutor, IExecutor<TInputOutput>> exec, Action<TInputOutput, TExecutorInputOutput> mapOut, Func<IServiceProvider, IServiceScope>? scopeFactory = null)
         where TExecutor : IExecutor<TInputOutput>
     {
         var sp = ResolveServiceProvider(scopeFactory);
@@ -148,8 +148,8 @@ public abstract class BaseExecutor<TExecutorInputOutput> : ISubsequentExecutor<T
                 return await HandleExecutor(operationItem, input, cancellationToken);
 
             return await ExecuteGenericOperation(input, operationItem.Id, cancellationToken);
-        } 
-        catch (Exception ex) when (ex is  OperationCanceledException or TaskCanceledException)
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or TaskCanceledException)
         {
             UpdateOperationItem(Operations[operationItem.Id] with { Status = OperationState.Cancelled });
             throw;
