@@ -11,3 +11,4 @@ public interface IOperation<TInputOutput> : IOperation
     public delegate void StatusChangedEventHandler(OperationStatus updatedItem);
     public event StatusChangedEventHandler? OnStatusChanged;
 }
+
