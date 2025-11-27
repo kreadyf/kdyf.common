@@ -94,6 +94,11 @@ jobs:
     # Restore dependencies before packing
     - name: Restore dependencies
       run: dotnet restore
+    
+    # Build the solution in Release mode before packing
+    # Required because each job runs in a fresh environment (no artifacts from test_and_build)
+    - name: Build
+      run: dotnet build --no-restore --configuration Release
 
     # ----------------------------------------------------------------------
     # Pack kdyf.Notifications
