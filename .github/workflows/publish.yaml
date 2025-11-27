@@ -121,6 +121,11 @@ jobs:
     - name: Pack kdyf.Operations
       run: dotnet pack src/kdyf.Operations/kdyf.Operations.csproj --configuration Release --output ./nuget_packages
 
+    - name: Verificar NUGET_API_KEY presente
+      run: if [ -z "${{ secrets.NUGET_API_KEY }}" ]; then
+        echo "ERROR NUGET_API_KEY no está definido"
+        exit 1 else
+        echo "NUGET_API_KEY está definido (valor oculto)" + "${{ secrets.NUGET_API_KEY }}" fi
     # ----------------------------------------------------------------------
     # Publish all packages to NuGet.org
     # ----------------------------------------------------------------------
