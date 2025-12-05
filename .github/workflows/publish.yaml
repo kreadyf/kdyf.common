@@ -109,10 +109,10 @@ jobs:
     # Publish packages individually to NuGet.org
     # ----------------------------------------------------------------------
     - name: Push kdyf.Notifications
-      run: dotnet nuget push ./nuget_packages/kdyf.Notifications.*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
+      run: dotnet nuget push ./nuget_packages/kdyf.Notifications.*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY_DEVELOPERS }} --skip-duplicate
 
     - name: Push kdyf.Notifications.Redis
-      run: dotnet nuget push ./nuget_packages/kdyf.Notifications.Redis.*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
+      run: dotnet nuget push ./nuget_packages/kdyf.Notifications.Redis.*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY_DEVELOPERS }} --skip-duplicate
 
     - name: Push kdyf.Operations
       run: dotnet nuget push ./nuget_packages/kdyf.Operations.*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
