@@ -15,19 +15,19 @@
 # Requirements:
 #   - NUGET_API_KEY secret must be configured in the repository
 # ============================================================================
- 
+
 name: Test, Build and NuGet Deploy
- 
+
 # ============================================================================
 # Triggers: Define when the workflow runs
 # ============================================================================
 on:
   push:
-    branches: [ "main" ]      # Runs on direct push to main
+    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]      # Runs on PRs targeting main
+    branches: [ "main" ]
   workflow_dispatch:
- 
+
 # ============================================================================
 # Jobs: Define the jobs to execute
 # ============================================================================
@@ -35,113 +35,84 @@ jobs:
   # --------------------------------------------------------------------------
   # Job: test_and_build
   # --------------------------------------------------------------------------
-  # Purpose: Build the solution and run all tests
-  # Runs always (on push and pull_request)
-  # --------------------------------------------------------------------------
   test_and_build:
     runs-on: ubuntu-latest
- 
+
     steps:
-    # Checkout source code
     - name: Checkout repository
       uses: actions/checkout@v4
- 
-    # Setup .NET SDK
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 8.0.x
- 
-    # Restore NuGet dependencies
+
     - name: Restore dependencies
       run: dotnet restore
- 
-    # Build the entire solution without restoring (already done)
+
     - name: Build
       run: dotnet build --no-restore --configuration Release
- 
-    # Run all tests
+
     # - name: Test
-    #  run: dotnet test --no-build --configuration Release --verbosity normal
- 
+    #   run: dotnet test --no-build --configuration Release --verbosity normal
+
   # --------------------------------------------------------------------------
   # Job: publish
   # --------------------------------------------------------------------------
-  # Purpose: Pack and publish NuGet packages to nuget.org
-  # Only runs on push to main (not on PRs) and after test_and_build succeeds
-  # --------------------------------------------------------------------------
   publish:
     runs-on: ubuntu-latest
-    # Only run on push to main, not on pull requests
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    # Wait for test_and_build job to complete successfully
     needs: test_and_build
- 
+
     steps:
-    # Checkout with fetch-depth: 0 for full git history access
-    # Required if using GitVersion or other git-based versioning tools
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
- 
-    # Setup .NET SDK
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 8.0.x
- 
-    # Restore dependencies before packing
+
     - name: Restore dependencies
       run: dotnet restore
-    
-    # Build the solution in Release mode before packing
-    # Required because each job runs in a fresh environment (no artifacts from test_and_build)
+
     - name: Build
       run: dotnet build --no-restore --configuration Release
- 
+
     # ----------------------------------------------------------------------
-    # Pack kdyf.Notifications
+    # Pack NuGet packages
     # ----------------------------------------------------------------------
-    # Generates the NuGet package for the base notifications project
     - name: Pack kdyf.Notifications
       run: dotnet pack src/kdyf.Notifications/kdyf.Notifications.csproj --configuration Release --output ./nuget_packages
- 
-    # ----------------------------------------------------------------------
-    # Pack kdyf.Notifications.Redis
-    # ----------------------------------------------------------------------
-    # Generates the NuGet package for the Redis notifications implementation
+
     - name: Pack kdyf.Notifications.Redis
       run: dotnet pack src/kdyf.Notifications.Redis/kdyf.Notifications.Redis.csproj --configuration Release --output ./nuget_packages
- 
-    # ----------------------------------------------------------------------
-    # Pack kdyf.Operations
-    # ----------------------------------------------------------------------
-    # Generates the NuGet package for the operations framework
+
     - name: Pack kdyf.Operations
       run: dotnet pack src/kdyf.Operations/kdyf.Operations.csproj --configuration Release --output ./nuget_packages
- 
+
     # ----------------------------------------------------------------------
-    # Verify NUGET_API_KEY secret is provided (does not reveal the secret)
+    # Verify NUGET_API_KEY secret
     # ----------------------------------------------------------------------
-    - name: Verificar NUGET_API_KEY presente
+    - name: Verify NUGET_API_KEY
       run: |
         if [ -z "${{ secrets.NUGET_API_KEY }}" ]; then
-          echo "ERROR: NUGET_API_KEY no está definido"
+          echo "ERROR: NUGET_API_KEY is not defined"
           exit 1
         else
-          echo "NUGET_API_KEY está definido (valor oculto)"
+          echo "NUGET_API_KEY is defined"
         fi
- 
-    - name: Comprobar longitud del secret (no revela el valor)
-      run: |
-        LEN=$(printf "%s" "${{ secrets.NUGET_API_KEY }}" | wc -c)
-        echo "Longitud de NUGET_API_KEY: $LEN"
- 
+
     # ----------------------------------------------------------------------
-    # Publish all packages to NuGet.org
+    # Publish packages individually to NuGet.org
     # ----------------------------------------------------------------------
-    # Uses --skip-duplicate to avoid errors if the package already exists
-    # Requires the NUGET_API_KEY secret configured in the repository
-    - name: Push NuGet Packages
-      run: dotnet nuget push ./nuget_packages/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
+    - name: Push kdyf.Notifications
+      run: dotnet nuget push ./nuget_packages/kdyf.Notifications.*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
+
+    - name: Push kdyf.Notifications.Redis
+      run: dotnet nuget push ./nuget_packages/kdyf.Notifications.Redis.*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
+
+    - name: Push kdyf.Operations
+      run: dotnet nuget push ./nuget_packages/kdyf.Operations.*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
