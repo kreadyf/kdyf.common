@@ -169,6 +169,7 @@ namespace kdyf.Notifications.Redis.Integration
 
                     var options = ConfigurationOptions.Parse(connectionString);
                     options.AbortOnConnectFail = false;
+                    options.CertificateValidation += (_, _, _, _) => true;
 
                     // Automatically ensure asyncTimeout and syncTimeout are sufficient for XReadGroupBlockMs
                     // This prevents RedisTimeoutException when XREADGROUP blocks for the full duration
