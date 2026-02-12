@@ -1,4 +1,5 @@
 ﻿using kdyf.Notifications.Integration;
+using kdyf.Notifications.Interfaces;
 using kdyf.Notifications.Redis.Configuration;
 using kdyf.Notifications.Redis.Services;
 using kdyf.Notifications.Redis.HealthChecks;
@@ -78,6 +79,25 @@ namespace kdyf.Notifications.Redis.Integration
                 });
             }
 
+            // Register the receiver factory for creating Redis receivers
+            // This allows the core Build() to create receivers without knowing Redis implementation details
+            // Multiple factories can coexist (Redis, Kafka, RabbitMQ, etc.)
+            if (!builder.Services.Any(sd => sd.ServiceType == typeof(INotificationReceiverFactory) &&
+                                            sd.ImplementationType == typeof(RedisReceiverFactory)))
+            {
+                builder.Services.AddSingleton<INotificationReceiverFactory, RedisReceiverFactory>();
+            }
+
+            // Register RedisNotificationOptions if configured via fluent API
+            // This moves the registration from Build() to keep Redis-specific logic here
+            if (builder.Properties.ContainsKey("kdyf.Notifications.Redis.Options"))
+            {
+                var redisOptions = builder.Properties["kdyf.Notifications.Redis.Options"];
+                if (!builder.Services.Any(sd => sd.ServiceType == typeof(RedisNotificationOptions)))
+                {
+                    builder.Services.AddSingleton(typeof(RedisNotificationOptions), redisOptions);
+                }
+            }
 
             // Register ONE instance for direct DI resolution (for tests that need it)
             if (!builder.Services.Any(sd => sd.ServiceType == typeof(RedisNotificationReceiver)))
@@ -96,11 +116,9 @@ namespace kdyf.Notifications.Redis.Integration
                 });
             }
 
-            // Track the receiver type for composite creation
-            if (!builder.Receivers.Contains(typeof(RedisNotificationReceiver)))
-            {
-                builder.Receivers.Add(typeof(RedisNotificationReceiver));
-            }
+            // NOTE: We do NOT add to builder.Receivers here anymore.
+            // Redis receivers are created via INotificationReceiverFactory in Build().
+            // This keeps the core project free of Redis-specific knowledge.
 
             return builder;
         }

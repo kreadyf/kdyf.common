@@ -1,18 +1,14 @@
-﻿using kdyf.Notifications.Integration;
+using kdyf.Notifications.Configuration;
 using kdyf.Notifications.Interfaces;
 using kdyf.Notifications.Services;
-using kdyf.Notifications.Configuration;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace kdyf.Notifications.Integration
 {
@@ -115,6 +111,9 @@ namespace kdyf.Notifications.Integration
         /// Creates CompositeNotificationEmitter and CompositeNotificationReceiver
         /// that coordinate all registered transports with centralized deduplication.
         ///
+        /// Supports multiple receiver factories (Redis, Kafka, RabbitMQ, etc.) registered simultaneously.
+        /// Each factory checks its own properties and creates receivers only for its transport.
+        ///
         /// IMPORTANT: Requires ILogger and IMemoryCache to be registered.
         /// Tests should call services.AddLogging() before calling Build().
         /// </summary>
@@ -129,39 +128,20 @@ namespace kdyf.Notifications.Integration
                     "No notification emitters registered. At least one emitter (e.g., InMemory, Redis) must be configured.");
             }
 
-            // VALIDATION: Ensure at least one receiver is registered
-            if (builder.Receivers.Count == 0)
+            // VALIDATION: Ensure at least one receiver source is configured
+            // Receivers can come from builder.Receivers (simple) or factories (complex like Redis, Kafka)
+            var hasFactoryConfiguration = builder.Services.Any(sd =>
+                sd.ServiceType == typeof(INotificationReceiverFactory));
+
+            if (builder.Receivers.Count == 0 && !hasFactoryConfiguration)
             {
                 throw new InvalidOperationException(
                     "No notification receivers registered. At least one receiver (e.g., InMemory, Redis) must be configured.");
             }
 
-            // VALIDATION: Check if Redis is configured and validate connection string
-            if (builder.Emitters.Any(t => t.Name.Contains("Redis")) ||
-                builder.Receivers.Any(t => t.Name.Contains("Redis")))
-            {
-                var redisConnectionString = builder.Configuration.GetSection("Redis")["ConnectionString"];
-                if (string.IsNullOrWhiteSpace(redisConnectionString))
-                {
-                    throw new InvalidOperationException(
-                        "Redis transport is registered but 'Redis:ConnectionString' is not configured in application configuration.");
-                }
-            }
-
             // STEP 1: Validate and register NotificationOptions
             builder.Options.Validate();
             builder.Services.AddSingleton(builder.Options);
-
-            // STEP 1b: Register RedisNotificationOptions if configured (for updateable/stream-only features)
-            // This uses reflection to avoid circular dependency between kdyf.Notifications and kdyf.Notifications.Redis
-            if (builder.Properties.ContainsKey("kdyf.Notifications.Redis.Options"))
-            {
-                var redisOptions = builder.Properties["kdyf.Notifications.Redis.Options"];
-                var optionsType = redisOptions.GetType();
-
-                // Register as singleton using the actual type
-                builder.Services.AddSingleton(optionsType, redisOptions);
-            }
 
             // STEP 2: Register MemoryCache with configured size limits
             builder.Services.TryAddSingleton<IMemoryCache>(sp =>
@@ -170,7 +150,7 @@ namespace kdyf.Notifications.Integration
                 return new MemoryCache(options.ToMemoryCacheOptions());
             });
 
-            // STEP 5: Register CompositeNotificationEmitter as the public INotificationEmitter
+            // STEP 3: Register CompositeNotificationEmitter as the public INotificationEmitter
             builder.Services.AddSingleton<INotificationEmitter>(sp =>
             {
                 var logger = sp.GetRequiredService<ILogger<CompositeNotificationEmitter>>();
@@ -184,136 +164,32 @@ namespace kdyf.Notifications.Integration
                 return new CompositeNotificationEmitter(emitters, logger);
             });
 
-            // STEP 6: Register CompositeNotificationReceiver as the public INotificationReceiver
+            // STEP 4: Register CompositeNotificationReceiver as the public INotificationReceiver
+            // Capture properties for use in the factory lambda
+            var builderProperties = builder.Properties;
+
             builder.Services.AddSingleton<INotificationReceiver>(sp =>
             {
                 var logger = sp.GetRequiredService<ILogger<CompositeNotificationReceiver>>();
                 var cache = sp.GetRequiredService<IMemoryCache>();
                 var options = sp.GetRequiredService<NotificationOptions>();
 
-                // Resolve ALL registered receivers
                 var receivers = new List<INotificationReceiver>();
+
+                // 1. Resolve simple receivers from DI (InMemory, etc.)
                 foreach (var type in builder.Receivers)
                 {
-                    // Special handling for RedisNotificationReceiver with multiple streams
-                    if (type.Name == "RedisNotificationReceiver" &&
-                        builder.Properties.ContainsKey("Redis.StreamNames"))
-                    {
-                        var streamNames = (List<string>)builder.Properties["Redis.StreamNames"];
-                        var configuration = sp.GetRequiredService<IConfiguration>();
+                    receivers.Add((INotificationReceiver)sp.GetRequiredService(type));
+                }
 
-                        // Get RedisNotificationOptions if configured
-                        // Merge options from appsettings.json (IOptions) and fluent API
-                        object? redisOptions = null;
-                        if (builder.Properties.ContainsKey("kdyf.Notifications.Redis.Options"))
-                        {
-                            var optionsType = builder.Properties["kdyf.Notifications.Redis.Options"].GetType();
-
-                            // Get options from appsettings.json (IOptions<RedisNotificationOptions>)
-                            var iOptionsType = typeof(Microsoft.Extensions.Options.IOptions<>).MakeGenericType(optionsType);
-                            var optionsFromConfig = sp.GetService(iOptionsType);
-                            object? configValue = null;
-                            if (optionsFromConfig != null)
-                            {
-                                var valueProperty = iOptionsType.GetProperty("Value");
-                                configValue = valueProperty?.GetValue(optionsFromConfig);
-                            }
-
-                            // Get options from fluent API
-                            var optionsFromFluent = sp.GetService(optionsType);
-
-                            // Use fluent if available, otherwise use config
-                            redisOptions = optionsFromFluent ?? configValue;
-                        }
-
-                        // Resolve default stream name if needed
-                        string defaultStreamName = "notifications:stream:default";
-                        if (redisOptions != null)
-                        {
-                            // Use reflection to get DefaultStreamName from RedisNotificationOptions
-                            var optionsType = redisOptions.GetType();
-                            var storageProperty = optionsType.GetProperty("Storage");
-                            if (storageProperty != null)
-                            {
-                                var storage = storageProperty.GetValue(redisOptions);
-                                if (storage != null)
-                                {
-                                    var defaultStreamNameProperty = storage.GetType().GetProperty("DefaultStreamName");
-                                    if (defaultStreamNameProperty != null)
-                                    {
-                                        var value = defaultStreamNameProperty.GetValue(storage) as string;
-                                        if (!string.IsNullOrWhiteSpace(value))
-                                        {
-                                            defaultStreamName = value;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Create one receiver instance per stream name
-                        foreach (var streamNameOrNull in streamNames)
-                        {
-                            // Resolve null/empty to default stream name
-                            var streamName = string.IsNullOrEmpty(streamNameOrNull) ? defaultStreamName : streamNameOrNull;
-
-                            // Resolve IConnectionMultiplexer (for Redis receivers)
-                            var redisConnectionMultiplexerType = typeof(StackExchange.Redis.IConnectionMultiplexer);
-                            var redis = sp.GetRequiredService(redisConnectionMultiplexerType);
-
-                            // Resolve ILogger<RedisNotificationReceiver> using the generic GetRequiredService method
-                            var loggerType = typeof(ILogger<>).MakeGenericType(type);
-
-                            // Use reflection to call sp.GetRequiredService<ILogger<RedisNotificationReceiver>>()
-                            var getServiceMethod = typeof(ServiceProviderServiceExtensions)
-                                .GetMethod(nameof(ServiceProviderServiceExtensions.GetRequiredService),
-                                           new[] { typeof(IServiceProvider) })
-                                ?.MakeGenericMethod(loggerType);
-
-                            var redisLogger = getServiceMethod?.Invoke(null, new object[] { sp });
-
-                            // Resolve NotificationTypeResolver
-                            var typeResolver = sp.GetRequiredService<NotificationTypeResolver>();
-
-                            // Resolve RedisStreamParser and RedisStreamInitializer (only for Redis receivers)
-                            object? streamParser = null;
-                            object? streamInitializer = null;
-                            if (type.Name == "RedisNotificationReceiver")
-                            {
-                                var parserType = type.Assembly.GetType("kdyf.Notifications.Redis.Services.RedisStreamParser");
-                                if (parserType != null)
-                                {
-                                    streamParser = sp.GetRequiredService(parserType);
-                                }
-
-                                var initializerType = type.Assembly.GetType("kdyf.Notifications.Redis.Services.RedisStreamInitializer");
-                                if (initializerType != null)
-                                {
-                                    streamInitializer = sp.GetRequiredService(initializerType);
-                                }
-                            }
-
-                            // Create receiver instance with full stream name using the 8-parameter constructor
-                            // Constructor signature: (IConnectionMultiplexer, IConfiguration, ILogger<RedisNotificationReceiver>, NotificationTypeResolver, RedisStreamParser, RedisStreamInitializer, string?, RedisNotificationOptions?)
-                            var receiver = (INotificationReceiver)Activator.CreateInstance(
-                                type,
-                                redis,              // param 1: IConnectionMultiplexer
-                                configuration,      // param 2: IConfiguration
-                                redisLogger,        // param 3: ILogger<RedisNotificationReceiver>
-                                typeResolver,       // param 4: NotificationTypeResolver
-                                streamParser,       // param 5: RedisStreamParser
-                                streamInitializer,  // param 6: RedisStreamInitializer
-                                streamName,         // param 7: string? (full stream name)
-                                redisOptions)!;     // param 8: RedisNotificationOptions?
-
-                            receivers.Add(receiver);
-                        }
-                    }
-                    else
-                    {
-                        // Standard receiver - resolve single instance from DI
-                        receivers.Add((INotificationReceiver)sp.GetRequiredService(type));
-                    }
+                // 2. Use ALL registered factories for receivers that need special creation logic
+                // Each factory (Redis, Kafka, RabbitMQ, etc.) checks its own properties
+                // and returns receivers only for its transport
+                var receiverFactories = sp.GetServices<INotificationReceiverFactory>();
+                foreach (var factory in receiverFactories)
+                {
+                    var factoryReceivers = factory.CreateReceivers(sp, builderProperties);
+                    receivers.AddRange(factoryReceivers);
                 }
 
                 // Create composite with CENTRALIZED DEDUPLICATION
