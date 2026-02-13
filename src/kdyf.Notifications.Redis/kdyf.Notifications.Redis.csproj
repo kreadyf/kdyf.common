@@ -6,7 +6,7 @@
 
 		<!-- Package configuration -->
 		<PackageId>kdyf.Notifications.Redis</PackageId>
-		<Version>1.0.1</Version>
+		<Version>1.0.2</Version>
 		<Authors>Kreadyf SRL</Authors>
 		<Company>Kreadyf SRL</Company>
 		<Description>Redis transport provider for kdyf.Notifications system. Enables distributed, persistent notification delivery using Redis Streams with fire-and-forget background processing. Features include: configurable storage strategies (standard key-value, updateable, stream-only), per-type stream routing, automatic stream trimming with TTL, resilience with retry policies, health checks for connection monitoring, backpressure control, and horizontal scalability. Requires kdyf.Notifications base package.</Description>

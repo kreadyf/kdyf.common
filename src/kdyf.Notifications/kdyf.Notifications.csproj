@@ -6,7 +6,7 @@
 
 		<!-- Package configuration -->
 		<PackageId>kdyf.Notifications</PackageId>
-		<Version>1.0.0</Version>
+		<Version>1.0.2</Version>
 		<Authors>Kreadyf SRL</Authors>
 		<Company>Kreadyf SRL</Company>
 		<Description>Reactive notification system for .NET with multi-transport support. Provides a composable notification infrastructure with InMemory (System.Reactive) and Redis transports. Features include: fluent builder API, composite pattern for multiple transports, automatic deduplication across transports, tag-based filtering, type-safe notification routing, health checks, and seamless integration with .NET dependency injection. Supports both fire-and-forget and reactive observable patterns.</Description>
