@@ -160,6 +160,35 @@ namespace kdyf.Notifications.Redis.Services
                         {
                             break;
                         }
+                        catch (RedisServerException ex) when (ex.Message.StartsWith("NOGROUP", StringComparison.Ordinal))
+                        {
+                            // The stream key or consumer group disappeared while we were running
+                            // (e.g. stream-key TTL expiry during a producer-idle window, a manual
+                            // flush/XGROUP DESTROY, a failover to a cold replica, or eviction under
+                            // maxmemory). XREADGROUP then throws NOGROUP on every call indefinitely,
+                            // so self-heal by recreating the group instead of spinning until the
+                            // process is restarted. This keeps long-lived consumers stable for
+                            // days/weeks/months regardless of why the group was lost.
+                            _logger.LogWarning(ex,
+                                "Stream '{Stream}' or consumer group '{Group}' missing — recreating and resuming",
+                                _streamName, _consumerGroup);
+
+                            var recoveryDelayMs = _redisOptions?.Resilience.ErrorRecoveryDelayMs ?? 1000;
+                            try
+                            {
+                                // Idempotent: (re)creates the stream (MKSTREAM) and the group, and
+                                // swallows BUSYGROUP if another instance won the race.
+                                await EnsureConsumerGroupAsync(db, linkedToken);
+                            }
+                            catch (Exception reinitEx)
+                            {
+                                _logger.LogError(reinitEx,
+                                    "Failed to recreate consumer group '{Group}' on stream '{Stream}'; will retry",
+                                    _consumerGroup, _streamName);
+                                await Task.Delay(recoveryDelayMs, linkedToken);
+                            }
+                            // Loop continues; the next XREADGROUP runs against the recreated group.
+                        }
                         catch (Exception ex)
                         {
                             _logger.LogError(ex, "Error reading from Redis stream");
