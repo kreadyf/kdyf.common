@@ -108,11 +108,22 @@ jobs:
     # ----------------------------------------------------------------------
     # Publish packages individually to NuGet.org
     # ----------------------------------------------------------------------
-    - name: Push kdyf.Notifications
-      run: dotnet nuget push ./nuget_packages/kdyf.Notifications.*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY_DEVELOPERS }} --skip-duplicate
-
-    - name: Push kdyf.Notifications.Redis
-      run: dotnet nuget push ./nuget_packages/kdyf.Notifications.Redis.*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY_DEVELOPERS }} --skip-duplicate
-
-    - name: Push kdyf.Operations
-      run: dotnet nuget push ./nuget_packages/kdyf.Operations.*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
+    - name: Publish new package versions
+      env:
+        OPERATIONS_KEY: ${{ secrets.NUGET_API_KEY }}
+        NOTIFICATIONS_KEY: ${{ secrets.NUGET_API_KEY_DEVELOPERS }}
+      run: |
+        for package in kdyf.Notifications kdyf.Notifications.Redis kdyf.Operations; do
+          version=$(dotnet msbuild "src/$package/$package.csproj" -getProperty:Version -nologo)
+          status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            "https://api.nuget.org/v3-flatcontainer/${package,,}/$version/${package,,}.nuspec")
+          case "$status" in
+            200) echo "$package $version is already published"; continue ;;
+            404) ;;
+            *) echo "Cannot check $package $version (HTTP $status)"; exit 1 ;;
+          esac
+          key="$NOTIFICATIONS_KEY"
+          if [ "$package" = kdyf.Operations ]; then key="$OPERATIONS_KEY"; fi
+          dotnet nuget push "./nuget_packages/$package.$version.nupkg" \
+            --source https://api.nuget.org/v3/index.json --api-key "$key" --skip-duplicate
+        done
