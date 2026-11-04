@@ -227,6 +227,7 @@ public abstract class BaseExecutor<TExecutorInputOutput> : ISubsequentExecutor<T
             var method = GetMethodByOperation<TInputOutput>(operation, operationId);
             var task = (Task)method!.Invoke(operation, new object[] { input!, cancellationToken })!;
 
+            // Let the operation finish its cleanup before callers can dispose its scoped services.
             return await task.ContinueWith(t =>
             {
                 if (t.IsFaulted && t.Exception != null)
@@ -238,7 +239,7 @@ public abstract class BaseExecutor<TExecutorInputOutput> : ISubsequentExecutor<T
 
                 var resultProperty = t.GetType().GetProperty("Result")!;
                 return (TInputOutput)resultProperty.GetValue(t)!;
-            }, cancellationToken)!;
+            }, cancellationToken, TaskContinuationOptions.LazyCancellation, TaskScheduler.Current)!;
         }
         catch (TargetInvocationException ex)
         {
